@@ -49,6 +49,8 @@ describe("shortIp", async () => {
   const { shortIp } = await import("@/lib/format");
   it("compacts IPv6 and unwraps IPv4-mapped addresses", () => {
     expect(shortIp("0000:0000:0000:0000:0000:0000:0000:0001")).toBe("::1");
+    expect(shortIp("::1")).toBe("::1");
+    expect(shortIp("2001:0db8:0000:0000:0000:0000:0000:0001")).toBe("2001:db8::1");
     expect(shortIp("::ffff:203.0.113.7")).toBe("203.0.113.7");
     expect(shortIp("203.0.113.7")).toBe("203.0.113.7");
     expect(shortIp(null)).toBe("—");

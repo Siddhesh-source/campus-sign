@@ -50,10 +50,10 @@ export function shortIp(ip: string | null | undefined) {
   const v4 = ip.match(/ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
   if (v4) return v4[1];
   if (!ip.includes(":")) return ip;
+  if (ip.includes("::")) return ip.toLowerCase(); // already compressed
   const groups = ip
     .split(":")
-    .filter((g, i, all) => g !== "" || i === 0 || i === all.length - 1)
-    .map((g) => (g === "" ? "0" : g.replace(/^0+(?=.)/, "").toLowerCase()));
+    .map((g) => g.replace(/^0+(?=.)/, "").toLowerCase());
   // Collapse the longest run of zero groups to "::".
   let best = { start: -1, len: 0 };
   for (let i = 0; i < groups.length; ) {
