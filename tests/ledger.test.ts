@@ -3,7 +3,7 @@ import { canonical, decideRecord, validateEvent } from "@ledger-core";
 import { db } from "@/server/db";
 import { setLedgerForTests } from "@/server/ledger/client";
 import { toLedgerPayload } from "@/server/ledger/outbox";
-import { relayDue, relayOne, SimulatedCrash } from "@/server/ledger/relay";
+import { LEASE_MS, relayDue, relayOne, SimulatedCrash } from "@/server/ledger/relay";
 import { reconcile } from "@/server/ledger/reconcile";
 import { createClass } from "@/server/classes";
 import { joinClass } from "@/server/enrollment";
@@ -135,8 +135,12 @@ describe("relay: failures and retries never duplicate", () => {
     expect(ledger.writes).toBe(1);
     expect(await db.ledgerOutbox.count({ where: { status: "PENDING" } })).toBe(2); // DB never heard back
 
-    const out = await relayDue({ ledger });
-    expect(out.map((o) => o.result)).toEqual(["REPLAYED", "CONFIRMED"]);
+    // The crashed relay's lease still holds: others skip that row and take the next one.
+    expect((await relayDue({ ledger })).map((o) => o.result)).toEqual(["CONFIRMED"]);
+    // Once the lease expires, the row is replayed and confirmed.
+    const out = await relayDue({ ledger, now: new Date(Date.now() + LEASE_MS + 60_000) });
+    expect(out.map((o) => o.result)).toEqual(["REPLAYED"]);
+    expect(await db.ledgerOutbox.count({ where: { status: "CONFIRMED" } })).toBe(2);
     expect(ledger.writes).toBe(2);
     expect(ledger.events.size).toBe(2);
   });

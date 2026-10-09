@@ -99,9 +99,9 @@ describe("review decisions", () => {
     const b = await createDocument(other.student, { classId: other.classId, typeId: LAB_REPORT, title: "Theirs" }, await file(), meta());
     await submitDocument(other.student, b.documentId, b.versionId, meta());
 
-    const inbox = await listInbox(fac.id, {});
+    const inbox = await listInbox(fac, {});
     expect(inbox.map((d) => d.title)).toEqual(["Mine"]);
-    expect(await listInbox(fac.id, { status: "APPROVED" })).toHaveLength(0);
+    expect(await listInbox(fac, { status: "APPROVED" })).toHaveLength(0);
   });
 });
 

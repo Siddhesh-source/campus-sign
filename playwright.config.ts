@@ -2,7 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "e2e",
+  globalSetup: "./e2e/warmup.ts",
   timeout: 60_000,
+  // The suite runs against `next dev`, which compiles routes and actions on first use.
+  expect: { timeout: 15_000 },
   use: {
     baseURL: "http://localhost:3000",
     trace: "retain-on-failure",

@@ -8,7 +8,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/server/db";
 import { setLedgerForTests, type LedgerClient } from "@/server/ledger/client";
-import { relayDue, relayOne, SimulatedCrash } from "@/server/ledger/relay";
+import { LEASE_MS, relayDue, relayOne, SimulatedCrash } from "@/server/ledger/relay";
 import { createClass } from "@/server/classes";
 import { joinClass } from "@/server/enrollment";
 import { createDocument, startReview, submitDocument } from "@/server/documents";
@@ -80,8 +80,10 @@ describe.skipIf(!RUN)("Hyperledger Fabric (real network)", () => {
     ).rejects.toBeInstanceOf(SimulatedCrash);
     expect(await db.ledgerOutbox.count({ where: { documentId, status: "PENDING" } })).toBe(2);
 
-    const out = await relayDue();
-    expect(out.map((o) => o.result)).toEqual(["REPLAYED", "CONFIRMED"]);
+    expect((await relayDue({ ledger: fabric })).map((o) => o.result)).toEqual(["CONFIRMED"]);
+    const out = await relayDue({ ledger: fabric, now: new Date(Date.now() + LEASE_MS + 60_000) });
+    expect(out.map((o) => o.result)).toEqual(["REPLAYED"]);
+    expect(await db.ledgerOutbox.count({ where: { documentId, status: "CONFIRMED" } })).toBe(2);
     const rows = await db.ledgerOutbox.findMany({ where: { documentId } });
     for (const r of rows) expect((await fabric.getEvent(r.id))?.eventId).toBe(r.id);
     expect((await fabric.listAll()).filter((e) => e.documentRef === documentId)).toHaveLength(2);

@@ -88,7 +88,9 @@ describe("approve & sign", () => {
     const row = await db.signature.findUniqueOrThrow({ where: { id: sig.signatureId } });
     const payload = JSON.parse(row.payload);
     expect(payload).toMatchObject({
-      v: 1,
+      v: 2,
+      stepOrder: 1,
+      totalSteps: 1,
       documentId,
       versionId,
       versionNumber: 1,
