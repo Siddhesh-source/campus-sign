@@ -43,3 +43,26 @@ export function initials(name: string) {
 export function classLine(c: { yearOfStudy: string; division: string; academicYear: string }) {
   return `${c.yearOfStudy} · Div ${c.division} · ${c.academicYear.replace("-", "–")}`;
 }
+
+/** Compact an IP for display: drop IPv4-mapped prefixes, collapse zero runs ("0000:…:0001" → "::1"). */
+export function shortIp(ip: string | null | undefined) {
+  if (!ip) return "—";
+  const v4 = ip.match(/ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
+  if (v4) return v4[1];
+  if (!ip.includes(":")) return ip;
+  const groups = ip
+    .split(":")
+    .filter((g, i, all) => g !== "" || i === 0 || i === all.length - 1)
+    .map((g) => (g === "" ? "0" : g.replace(/^0+(?=.)/, "").toLowerCase()));
+  // Collapse the longest run of zero groups to "::".
+  let best = { start: -1, len: 0 };
+  for (let i = 0; i < groups.length; ) {
+    if (groups[i] !== "0") { i++; continue; }
+    let j = i;
+    while (j < groups.length && groups[j] === "0") j++;
+    if (j - i > best.len) best = { start: i, len: j - i };
+    i = j;
+  }
+  if (best.len < 2) return groups.join(":");
+  return `${groups.slice(0, best.start).join(":")}::${groups.slice(best.start + best.len).join(":")}`;
+}

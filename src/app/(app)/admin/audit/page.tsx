@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePageUser } from "@/server/auth";
 import { listAuditEvents } from "@/server/faculty";
-import { fmtStamp } from "@/lib/format";
+import { fmtStamp, shortIp } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Audit log" };
 
@@ -71,7 +71,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
                   <td className="mono max-w-[360px] truncate text-[12px] text-muted" title={detail(e.metadata, e.targetId)}>
                     {detail(e.metadata, e.targetId)}
                   </td>
-                  <td className="mono text-[12px] text-muted">{e.ip ?? "—"}</td>
+                  <td className="mono max-w-[140px] truncate text-[12px] text-muted" title={e.ip ?? undefined}>{shortIp(e.ip)}</td>
                 </tr>
               ))}
             </tbody>
