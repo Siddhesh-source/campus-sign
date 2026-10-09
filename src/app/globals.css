@@ -355,3 +355,17 @@ body {
     animation: none;
   }
 }
+
+/* Touch devices: every control meets the 44px target (DESIGN.md: student flow is phone-first). */
+@media (pointer: coarse) {
+  .btn,
+  .btn-sm,
+  .input {
+    min-height: 44px;
+  }
+  nav[aria-label="Primary"] a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
