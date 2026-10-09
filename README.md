@@ -5,6 +5,7 @@ Academic document signing for VIT Pune.
 - **Phase 1:** sign-in, roles, class enrollment
 - **Phase 2:** versioned PDF submission and faculty review
 - **Phase 3:** Ed25519 signing and public verification
+- **Phase 4:** Hyperledger Fabric trust layer
 
 - **Students** sign in with any Google-verified `@vit.edu` account. They join classes with a code and are added instantly.
 - **Faculty** are verified by an administrator, either added directly or approved from a request. Faculty create classes and manage their join codes.
@@ -24,11 +25,29 @@ pnpm dev                      # http://localhost:3000
 
 Without a Google OAuth client, use the **development sign-in** on `/sign-in` (Student / Faculty / Admin presets). It only exists when `CAMPUSIGN_DEV_AUTH=1` and `NODE_ENV` is not `production`. The app refuses to start in production with that flag set, so build with `CAMPUSIGN_DEV_AUTH=` cleared.
 
+## Blockchain (Phase 4)
+
+CampusSign records document events on a permissioned **Hyperledger Fabric** network as a verification layer. Postgres stays the system of record.
+
+```bash
+pnpm ledger:up          # 1 orderer + 2 peer orgs, channel `campussign`, chaincode as a service (needs Docker only)
+pnpm ledger:relay       # worker: delivers queued events (the app also relays right after each decision)
+pnpm ledger:reconcile   # compare Postgres with the ledger; mismatches appear in Admin › Blockchain
+pnpm ledger:smoke       # write and read a probe event (isolated `campussign-it` namespace)
+pnpm ledger:down
+```
+
+- **What goes on-chain:** event id, type (submitted, approved, rejected, corrections requested, key revoked), opaque document and version ids, SHA-256 hashes, the signing key id, and timestamps.
+- **What never goes on-chain:** names, PRNs, emails, titles, rejection comments, PDFs, or keys. An allow-list is enforced in both the app and the chaincode.
+- **Delivery:** events are written to a transactional outbox together with each decision. The relay delivers them idempotently, using the event id as the key, so crashes and retries can never create duplicate events.
+- **What "Fully verified" means:** a valid Ed25519 signature plus a confirmed, matching on-chain record. A decision waiting on the chain is shown as exactly that.
+
 ## Tests
 
 ```bash
 pnpm test                     # Vitest integration suite (uses campusign_test DB)
 PW_CHANNEL=chrome pnpm e2e    # Playwright: done-criteria on desktop + phone
+LEDGER_IT=1 pnpm test tests/fabric.it.test.ts   # against the real Fabric network
 pnpm typecheck && pnpm lint
 ```
 

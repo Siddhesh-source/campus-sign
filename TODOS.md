@@ -16,6 +16,15 @@
 - **What:** An admin page that lists every faculty signing key, with a revoke button. The service already supports admin revocation via `revokeCredential`, and revoking faculty access already revokes their keys.
 - **Effort:** human S / CC S.
 
+## P1 — Production Fabric network
+- **What:** Replace cryptogen with Fabric CA-issued identities. Run 3+ Raft orderers. Add an auditor org with read-only access (the chaincode already restricts writes to `WRITER_MSPS`). Run the relay as its own deployment with alerts on pending age and on mismatches.
+- **Why:** The local test network is single-host and uses generated crypto.
+- **Effort:** human L / CC M. **Depends on:** deploy target.
+
+## P2 — Mismatch resolution workflow
+- **What:** Let admins investigate, annotate and resolve `ledger_mismatch` rows, which today are only listed. Add a scheduled reconciliation job.
+- **Effort:** human S / CC S.
+
 ## P2 — Hash-chained audit log
 - **What:** Each `audit_events` row stores `hash(prev_hash || canonical(row))`; Phase 3 anchors chain heads on the permissioned blockchain.
 - **Why:** DB trigger blocks app-level edits but not a DB superuser; a chain makes tampering detectable.
