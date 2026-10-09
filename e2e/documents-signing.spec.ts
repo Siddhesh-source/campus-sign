@@ -55,7 +55,7 @@ test("student submits, faculty signs, anyone verifies", async ({ browser }, info
   await student.getByLabel("Title").fill(`Lab ${run}`);
   await student.locator('input[type="file"]').setInputFiles({ name: "lab.pdf", mimeType: "application/pdf", buffer: await makePdf(`Lab ${run}`) });
   await student.getByRole("button", { name: "Upload and preview" }).click();
-  await expect(student.getByRole("heading", { name: "Ready to submit?" })).toBeVisible();
+  await expect(student.getByRole("heading", { name: "Ready to submit?" })).toBeVisible({ timeout: 30_000 });
   await expect(student.locator("iframe")).toBeVisible();
   await student.getByRole("button", { name: "Submit for review" }).click();
   await expect(student.getByRole("heading", { name: "Waiting for review" })).toBeVisible();
@@ -68,6 +68,7 @@ test("student submits, faculty signs, anyone verifies", async ({ browser }, info
   await faculty.getByRole("checkbox").check();
   await faculty.getByRole("button", { name: "Approve and sign" }).click();
   await expect(faculty.getByRole("heading", { name: "Approved and signed" })).toBeVisible();
+  await expect(faculty.getByText("Blockchain record")).toBeVisible();
 
   // Student: download the signed PDF.
   await student.reload();
@@ -79,8 +80,13 @@ test("student submits, faculty signs, anyone verifies", async ({ browser }, info
   // Public, logged-out verification.
   const anon = await (await browser.newContext()).newPage();
   await anon.goto("/verify");
-  await anon.getByLabel("Choose a PDF to verify").setInputFiles({ name: "signed.pdf", mimeType: "application/pdf", buffer: signed });
-  await expect(anon.getByRole("heading", { name: "Valid signature" })).toBeVisible();
+  // The decision is final immediately, but "Fully verified" waits for the Fabric
+  // transaction to confirm (the relay runs right after the approval).
+  await expect(async () => {
+    await anon.getByLabel("Choose a PDF to verify").setInputFiles({ name: "signed.pdf", mimeType: "application/pdf", buffer: signed });
+    await expect(anon.getByRole("heading", { name: "Fully verified" })).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 60_000 });
+  await expect(anon.getByText("Confirmed on-chain")).toBeVisible();
   await expect(anon.getByText("Prof Signer")).toBeVisible();
   await expect(anon.getByText("Sub Mitter")).toHaveCount(0);
   await expect(anon.getByText(studentEmail)).toHaveCount(0);

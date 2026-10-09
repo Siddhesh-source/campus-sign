@@ -6,6 +6,8 @@ import { getDocument } from "@/server/documents";
 import { DocStatus, Hash, Timeline, fmtBytes } from "@/components/doc-ui";
 import { GuillocheBand } from "@/components/guilloche";
 import { classLine, fmtStamp } from "@/lib/format";
+import { documentLedgerRows } from "@/server/ledger/status";
+import { DocumentLedgerPanel } from "@/components/ledger-ui";
 import { NewVersionForm, SubmitPanel } from "./document-client";
 
 export const metadata: Metadata = { title: "Document" };
@@ -20,6 +22,8 @@ export default async function DocumentPage({ params, searchParams }: { params: P
   const signature = doc.signatures[0];
   const lastDecision = [...doc.events].reverse().find((e) => e.type === "CORRECTIONS_REQUESTED" || e.type === "REJECTED");
   const versionNumbers = Object.fromEntries(doc.versions.map((v) => [v.id, v.number]));
+  const ledgerRows = await documentLedgerRows(doc.id);
+  const approvalOnChain = ledgerRows.find((r) => r.type === "APPROVED")?.status === "CONFIRMED";
 
   return (
     <div className="px-4 py-8 sm:px-8 sm:py-10">
@@ -90,9 +94,14 @@ export default async function DocumentPage({ params, searchParams }: { params: P
           {doc.status === "APPROVED" && signature && (
             <div className="panel relative isolate space-y-3 overflow-hidden p-5 shadow-[var(--shadow-2)]">
               <GuillocheBand className="absolute inset-0 -z-10 h-full w-full text-green opacity-[0.14]" />
-              <div className="micro">Signed · verification code</div>
+              <div className="micro">Faculty decision · approved and signed</div>
               <div className="mono text-[20px] font-semibold tracking-[0.04em] text-green-ink">{signature.code}</div>
               <div className="mono text-[11.5px] text-muted">{fmtStamp(signature.signedAt)}</div>
+              <p className="text-[13px] text-ink-2">
+                {approvalOnChain
+                  ? "Confirmed on the blockchain. This document is fully verifiable."
+                  : "Waiting for blockchain confirmation. It is not fully verified until that completes."}
+              </p>
               <div className="flex flex-wrap gap-2 pt-1">
                 <a href={`/api/files/signed/${signature.id}`} className="btn btn-primary btn-sm">
                   Download signed PDF
@@ -125,6 +134,8 @@ export default async function DocumentPage({ params, searchParams }: { params: P
               ))}
             </ul>
           </div>
+          <DocumentLedgerPanel rows={ledgerRows} />
+
 
           <div className="panel p-4">
             <h2 className="label-caps mb-3">History</h2>

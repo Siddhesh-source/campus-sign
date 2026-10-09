@@ -17,6 +17,8 @@ import { UserFacingError } from "./errors";
 import { assertDecidable, canView } from "./documents";
 import { sha256Hex, stampSignedPdf } from "./pdf";
 import { getFile, putFile } from "./storage";
+import { enqueueLedgerEvent } from "./ledger/outbox";
+import { checkApprovalOnLedger, type LedgerCheck } from "./ledger/status";
 import type { CurrentUser } from "./auth";
 
 // ── Key encryption ────────────────────────────────────────────────────────
@@ -116,6 +118,7 @@ export async function revokeCredential(actor: CurrentUser, credentialId: string,
     if (!cred || !allowed) throw new UserFacingError("NOT_FOUND", "That credential doesn't exist.");
     if (cred.status === "REVOKED") throw new UserFacingError("STALE", "That credential is already revoked.");
     await tx.signingCredential.update({ where: { id: credentialId }, data: { status: "REVOKED", retiredAt: new Date(), revokedReason: reasonText } });
+    await enqueueLedgerEvent(tx, { type: "KEY_REVOKED", signerKeyId: cred.keyId });
     await audit(tx, { actor, action: "credential.revoke", targetType: "credential", targetId: cred.keyId, metadata: { reason: reasonText }, meta });
   });
 }
@@ -124,11 +127,12 @@ export async function revokeCredential(actor: CurrentUser, credentialId: string,
 export async function revokeCredentialsForEmail(tx: Tx, email: string, reason: string) {
   const user = await tx.user.findUnique({ where: { email }, select: { id: true } });
   if (!user) return 0;
-  const res = await tx.signingCredential.updateMany({
-    where: { facultyId: user.id, status: { in: ["ACTIVE", "ROTATED"] } },
-    data: { status: "REVOKED", retiredAt: new Date(), revokedReason: reason },
-  });
-  return res.count;
+  const live = await tx.signingCredential.findMany({ where: { facultyId: user.id, status: { in: ["ACTIVE", "ROTATED"] } }, select: { id: true, keyId: true } });
+  for (const c of live) {
+    await tx.signingCredential.update({ where: { id: c.id }, data: { status: "REVOKED", retiredAt: new Date(), revokedReason: reason } });
+    await enqueueLedgerEvent(tx, { type: "KEY_REVOKED", signerKeyId: c.keyId });
+  }
+  return live.length;
 }
 
 export async function listCredentials(facultyId: string) {
@@ -237,6 +241,17 @@ export async function approveAndSign(actor: CurrentUser, documentId: string, inp
         },
       });
       await tx.document.update({ where: { id: documentId }, data: { status: "APPROVED" } });
+      await enqueueLedgerEvent(tx, {
+        type: "APPROVED",
+        documentRef: documentId,
+        versionId: version.id,
+        versionNumber: version.number,
+        sha256: version.sha256,
+        signedSha256,
+        signerKeyId: cred.keyId,
+        occurredAt: signedAt,
+        signatureId,
+      });
       await tx.documentEvent.create({
         data: { documentId, versionId: version.id, actorId: actor.id, actorRole: "FACULTY", type: "APPROVED_SIGNED" },
       });
@@ -271,6 +286,9 @@ export type VerifyStatus = "VALID" | "MODIFIED_OR_UNKNOWN" | "REVOKED" | "INVALI
 /** Public result. Deliberately contains no student identity and no document title. */
 export type VerifyResult = {
   status: VerifyStatus;
+  /** True only when the signature is VALID and the approval is confirmed on-chain and matches. */
+  fullyVerified: boolean;
+  ledger?: LedgerCheck;
   isUnsignedOriginal?: boolean;
   record?: {
     code: string;
@@ -343,13 +361,13 @@ function toRecord(sig: SigRow): VerifyResult["record"] {
 
 export async function verifyHash(sha256: string): Promise<VerifyResult> {
   const hash = sha256.trim().toLowerCase();
-  if (!/^[a-f0-9]{64}$/.test(hash)) return { status: "MODIFIED_OR_UNKNOWN" };
+  if (!/^[a-f0-9]{64}$/.test(hash)) return { status: "MODIFIED_OR_UNKNOWN", fullyVerified: false };
   const sig = await findSig({ signedSha256: hash });
   if (!sig) {
     const original = await db.signature.findFirst({ where: { originalSha256: hash }, select: { id: true } });
-    return { status: "MODIFIED_OR_UNKNOWN", isUnsignedOriginal: !!original };
+    return { status: "MODIFIED_OR_UNKNOWN", fullyVerified: false, isUnsignedOriginal: !!original };
   }
-  return { status: checkSignature(sig), record: toRecord(sig) };
+  return withLedger(sig);
 }
 
 export async function verifyBytes(bytes: Uint8Array) {
@@ -362,5 +380,13 @@ export async function verifyCode(code: string): Promise<VerifyResult | null> {
   if (!/^CS-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(clean)) return null;
   const sig = await findSig({ code: clean });
   if (!sig) return null;
-  return { status: checkSignature(sig), record: toRecord(sig) };
+  return withLedger(sig);
+}
+
+/** Signature check + live on-chain check. A key revoked on-chain counts as revoked. */
+async function withLedger(sig: SigRow): Promise<VerifyResult> {
+  let status = checkSignature(sig);
+  const ledger = await checkApprovalOnLedger(sig.id, sig.signedSha256, sig.credential.keyId);
+  if (status === "VALID" && ledger.keyRevokedOnChain) status = "REVOKED";
+  return { status, fullyVerified: status === "VALID" && ledger.state === "CONFIRMED", ledger, record: toRecord(sig) };
 }

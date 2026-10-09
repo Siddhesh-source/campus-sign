@@ -361,3 +361,52 @@ model Signature {
   @@index([originalSha256])
   @@map("signature")
 }
+
+// ── Phase 4: blockchain trust layer ────────────────────────────────────────
+
+enum LedgerOutboxStatus {
+  PENDING
+  CONFIRMED
+  CONFLICT
+}
+
+/// Transactional outbox. Written in the same DB transaction as the business
+/// event; the relay delivers it to Fabric. id = on-chain eventId (idempotency key).
+///   PENDING ──relay ok/replay──► CONFIRMED
+///   PENDING ──chaincode CONFLICT──► CONFLICT (never auto-resolved)
+///   PENDING ──error──► PENDING (attempts++, backoff)
+model LedgerOutbox {
+  id            String             @id
+  type          String
+  documentId    String?
+  signatureId   String?
+  payload       String
+  status        LedgerOutboxStatus @default(PENDING)
+  attempts      Int                @default(0)
+  nextAttemptAt DateTime           @default(now())
+  lastError     String?
+  txId          String?
+  blockNumber   BigInt?
+  onChainAt     DateTime?
+  confirmedAt   DateTime?
+  createdAt     DateTime           @default(now())
+
+  @@index([status, nextAttemptAt])
+  @@index([documentId])
+  @@index([signatureId])
+  @@map("ledger_outbox")
+}
+
+/// Disagreements between Postgres and the ledger, found by the reconciler.
+model LedgerMismatch {
+  id         String    @id @default(cuid())
+  eventId    String
+  kind       String
+  detail     Json?
+  detectedAt DateTime  @default(now())
+  resolvedAt DateTime?
+
+  @@index([resolvedAt])
+  @@index([eventId, kind])
+  @@map("ledger_mismatch")
+}

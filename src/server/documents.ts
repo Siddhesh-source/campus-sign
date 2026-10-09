@@ -6,6 +6,7 @@ import { audit, type RequestMeta } from "./audit";
 import { UserFacingError } from "./errors";
 import { inspectPdf } from "./pdf";
 import { putFile } from "./storage";
+import { enqueueLedgerEvent } from "./ledger/outbox";
 import type { CurrentUser } from "./auth";
 
 /** Statuses in which the student may upload a new version. */
@@ -145,6 +146,14 @@ export async function submitDocument(actor: CurrentUser, documentId: string, ver
     await tx.documentVersion.update({ where: { id: versionId }, data: { submittedAt: now } });
     await tx.document.update({ where: { id: documentId }, data: { status: "SUBMITTED", submittedAt: now } });
     await tx.documentEvent.create({ data: { documentId, versionId, actorId: actor.id, actorRole: "STUDENT", type: "SUBMITTED" } });
+    await enqueueLedgerEvent(tx, {
+      type: "SUBMITTED",
+      documentRef: documentId,
+      versionId,
+      versionNumber: doc.current!.number,
+      sha256: doc.current!.sha256,
+      occurredAt: now,
+    });
     await audit(tx, { actor, action: "document.submit", targetType: "document", targetId: documentId, metadata: { versionId, sha256: doc.current?.sha256 ?? null }, meta });
   });
 }
@@ -188,6 +197,14 @@ export async function decideDocument(actor: CurrentUser, documentId: string, inp
     await tx.document.update({ where: { id: documentId }, data: { status } });
     await tx.documentEvent.create({
       data: { documentId, versionId, actorId: actor.id, actorRole: "FACULTY", type: decision === "REJECT" ? "REJECTED" : "CORRECTIONS_REQUESTED", reason },
+    });
+    // On-chain: the event and the exact version only. The reason never leaves Postgres.
+    await enqueueLedgerEvent(tx, {
+      type: decision === "REJECT" ? "REJECTED" : "CORRECTIONS_REQUESTED",
+      documentRef: documentId,
+      versionId,
+      versionNumber: doc.current!.number,
+      sha256: doc.current!.sha256,
     });
     await audit(tx, {
       actor,

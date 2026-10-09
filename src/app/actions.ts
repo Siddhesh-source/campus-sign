@@ -1,6 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { kickRelay } from "@/server/ledger/relay";
+import { reconcile } from "@/server/ledger/reconcile";
 import { redirect } from "next/navigation";
 import { requestMeta, requireActor } from "@/server/auth";
 import { runAction, type ActionResult } from "@/server/errors";
@@ -83,7 +86,10 @@ export async function removeStudentAction(classId: string, enrollmentId: string)
 
 export async function decideFacultyAction(id: string, decision: "approve" | "reject" | "revoke") {
   const result = await runAction("decideFaculty", async () => decideFacultyAccess(await requireActor("ADMIN"), id, decision, await requestMeta()));
-  if (result.ok) revalidatePath("/admin");
+  if (result.ok) {
+    revalidatePath("/admin");
+    after(kickRelay);
+  }
   return result;
 }
 
@@ -105,7 +111,10 @@ export async function submitDocumentAction(documentId: string, versionId: string
   const result = await runAction("submitDocument", async () =>
     submitDocument(await requireActor("STUDENT"), documentId, versionId, await requestMeta()),
   );
-  if (result.ok) revalidatePath(`/documents/${documentId}`);
+  if (result.ok) {
+    revalidatePath(`/documents/${documentId}`);
+    after(kickRelay);
+  }
   return result;
 }
 
@@ -113,7 +122,10 @@ export async function decideDocumentAction(documentId: string, input: { versionI
   const result = await runAction("decideDocument", async () =>
     decideDocument(await requireActor("FACULTY"), documentId, input, await requestMeta()),
   );
-  if (result.ok) revalidatePath(`/review/${documentId}`);
+  if (result.ok) {
+    revalidatePath(`/review/${documentId}`);
+    after(kickRelay);
+  }
   return result;
 }
 
@@ -123,7 +135,10 @@ export async function approveAndSignAction(documentId: string, input: { versionI
   const result = await runAction("approveAndSign", async () =>
     approveAndSign(await requireActor("FACULTY"), documentId, input, await requestMeta()),
   );
-  if (result.ok) revalidatePath(`/review/${documentId}`);
+  if (result.ok) {
+    revalidatePath(`/review/${documentId}`);
+    after(kickRelay);
+  }
   return result;
 }
 
@@ -147,11 +162,39 @@ export async function revokeCredentialAction(credentialId: string, reason: strin
   const result = await runAction("revokeCredential", async () =>
     revokeCredential(await requireActor("FACULTY", "ADMIN"), credentialId, reason, await requestMeta()),
   );
-  if (result.ok) revalidatePath("/signing");
+  if (result.ok) {
+    revalidatePath("/signing");
+    after(kickRelay);
+  }
   return result;
 }
 
 /** Public: no session needed. Only a hash leaves the browser. */
 export async function verifyHashAction(sha256: string) {
   return runAction("verifyHash", () => verifyHash(String(sha256).slice(0, 80)));
+}
+
+// ── Ledger (Phase 4, admin) ───────────────────────────────────────────────
+
+export async function relayNowAction() {
+  const result = await runAction("relayNow", async () => {
+    await requireActor("ADMIN");
+    const { relayDue } = await import("@/server/ledger/relay");
+    const { db } = await import("@/server/db");
+    await db.ledgerOutbox.updateMany({ where: { status: "PENDING" }, data: { nextAttemptAt: new Date() } });
+    return (await relayDue({ limit: 200 })).length;
+  });
+  revalidatePath("/admin/ledger");
+  return result;
+}
+
+export async function reconcileAction() {
+  const result = await runAction("reconcile", async () => {
+    await requireActor("ADMIN");
+    const report = await reconcile();
+    if (!report) return { checked: 0, onChain: 0, mismatches: 0, off: true };
+    return { checked: report.checked, onChain: report.onChain, mismatches: report.mismatches.length, off: false };
+  });
+  revalidatePath("/admin/ledger");
+  return result;
 }

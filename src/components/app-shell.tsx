@@ -10,6 +10,7 @@ function navFor(user: CurrentUser): NavItem[] {
       return [
         { href: "/admin", label: "Faculty access", exact: true },
         { href: "/admin/audit", label: "Audit log" },
+        { href: "/admin/ledger", label: "Blockchain" },
       ];
     case "FACULTY":
       return [

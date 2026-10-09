@@ -6,7 +6,7 @@ beforeEach(async () => {
   await db.$transaction([
     db.$executeRawUnsafe("SET LOCAL session_replication_role = replica"),
     db.$executeRawUnsafe(
-      'TRUNCATE "signature","signing_credential","document_event","document_version","document","audit_event","enrollment","class_code","class","faculty_access","code_lookup_limit","session","account","verification","user" CASCADE',
+      'TRUNCATE "ledger_mismatch","ledger_outbox","signature","signing_credential","document_event","document_version","document","audit_event","enrollment","class_code","class","faculty_access","code_lookup_limit","session","account","verification","user" CASCADE',
     ),
   ]);
 });

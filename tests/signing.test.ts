@@ -119,7 +119,7 @@ describe("public verification", () => {
   it("an unknown document fails, and the unsigned original is identified as such", async () => {
     expect((await verifyBytes(await makePdf("never uploaded"))).status).toBe("MODIFIED_OR_UNKNOWN");
     const { sha256 } = await signed();
-    expect(await verifyHash(sha256)).toEqual({ status: "MODIFIED_OR_UNKNOWN", isUnsignedOriginal: true });
+    expect(await verifyHash(sha256)).toMatchObject({ status: "MODIFIED_OR_UNKNOWN", isUnsignedOriginal: true, fullyVerified: false });
     expect((await verifyHash("not-a-hash")).status).toBe("MODIFIED_OR_UNKNOWN");
   });
 

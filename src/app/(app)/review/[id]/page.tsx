@@ -6,6 +6,8 @@ import { DECIDABLE, getDocument, startReview } from "@/server/documents";
 import { db } from "@/server/db";
 import { DocStatus, Hash, Timeline, fmtBytes } from "@/components/doc-ui";
 import { classLine, fmtStamp } from "@/lib/format";
+import { documentLedgerRows } from "@/server/ledger/status";
+import { DocumentLedgerPanel } from "@/components/ledger-ui";
 import { DecisionPanel } from "./review-client";
 
 export const metadata: Metadata = { title: "Review" };
@@ -27,6 +29,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   const versionNumbers = Object.fromEntries(doc.versions.map((v) => [v.id, v.number]));
   const credential = await db.signingCredential.findFirst({ where: { facultyId: user.id, status: "ACTIVE" }, select: { keyId: true } });
   const signature = doc.signatures[0];
+  const ledgerRows = await documentLedgerRows(doc.id);
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
@@ -88,6 +91,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
           ) : doc.status === "APPROVED" && signature ? (
             <div className="panel space-y-2 p-5">
               <h2 className="heading text-[16px]">Approved and signed</h2>
+              <p className="text-[12.5px] text-muted">Your decision is recorded. Blockchain confirmation is tracked separately below.</p>
               <div className="mono text-[16px] font-semibold text-green-ink">{signature.code}</div>
               <div className="mono text-[11.5px] text-muted">{fmtStamp(signature.signedAt)}</div>
               <div className="flex flex-wrap gap-2 pt-1">
@@ -132,6 +136,8 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
               </ul>
             </div>
           )}
+          <DocumentLedgerPanel rows={ledgerRows} />
+
 
           <div className="panel p-4">
             <h2 className="label-caps mb-3">History</h2>
