@@ -23,6 +23,8 @@ model User {
   accounts    Account[]
   classes     Class[]      @relation("ClassFaculty")
   enrollments Enrollment[]
+  documents   Document[]
+  credentials SigningCredential[]
 
   @@map("user")
 }
@@ -117,6 +119,7 @@ model Class {
 
   codes       ClassCode[]
   enrollments Enrollment[]
+  documents   Document[]
 
   @@index([facultyId])
   @@map("class")
@@ -209,4 +212,152 @@ model CodeLookupLimit {
   updatedAt   DateTime  @updatedAt
 
   @@map("code_lookup_limit")
+}
+
+// ── Phase 2: documents ─────────────────────────────────────────────────────
+
+model DocumentType {
+  id        String     @id @default(cuid())
+  code      String     @unique
+  name      String
+  active    Boolean    @default(true)
+  documents Document[]
+
+  @@map("document_type")
+}
+
+enum DocumentStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_REVIEW
+  APPROVED
+  CORRECTIONS_REQUESTED
+  REJECTED
+}
+
+///   DRAFT ──submit──► SUBMITTED ──review──► PENDING_REVIEW ──approve&sign──► APPROVED
+///     ▲                                         ├──reject──► REJECTED
+///     └──new version── CORRECTIONS_REQUESTED ◄──┘ request corrections
+model Document {
+  id               String         @id @default(cuid())
+  classId          String
+  class            Class          @relation(fields: [classId], references: [id])
+  studentId        String
+  student          User           @relation(fields: [studentId], references: [id])
+  typeId           String
+  type             DocumentType   @relation(fields: [typeId], references: [id])
+  title            String
+  status           DocumentStatus @default(DRAFT)
+  currentVersionId String?        @unique
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  submittedAt      DateTime?
+
+  versions   DocumentVersion[] @relation("DocumentVersions")
+  current    DocumentVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+  events     DocumentEvent[]
+  signatures Signature[]
+
+  @@index([studentId, updatedAt])
+  @@index([classId, status])
+  @@map("document")
+}
+
+/// Immutable file record. submittedAt != null means the version is locked.
+model DocumentVersion {
+  id           String    @id @default(cuid())
+  documentId   String
+  document     Document  @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
+  number       Int
+  storageKey   String    @unique
+  sha256       String
+  sizeBytes    Int
+  pageCount    Int
+  originalName String
+  uploadedById String
+  createdAt    DateTime  @default(now())
+  submittedAt  DateTime?
+
+  currentOf  Document?       @relation("CurrentVersion")
+  events     DocumentEvent[]
+  signatures Signature[]
+
+  @@unique([documentId, number])
+  @@index([sha256])
+  @@map("document_version")
+}
+
+enum DocumentEventType {
+  CREATED
+  VERSION_UPLOADED
+  SUBMITTED
+  REVIEW_STARTED
+  CORRECTIONS_REQUESTED
+  REJECTED
+  APPROVED_SIGNED
+}
+
+model DocumentEvent {
+  id         String            @id @default(cuid())
+  documentId String
+  document   Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  versionId  String?
+  version    DocumentVersion?  @relation(fields: [versionId], references: [id])
+  actorId    String
+  actorRole  String
+  type       DocumentEventType
+  reason     String?
+  createdAt  DateTime          @default(now())
+
+  @@index([documentId, createdAt])
+  @@map("document_event")
+}
+
+// ── Phase 3: signing ───────────────────────────────────────────────────────
+
+enum CredentialStatus {
+  ACTIVE
+  ROTATED
+  REVOKED
+}
+
+/// Ed25519 key pair. The private key is AES-256-GCM encrypted under SIGNING_KEK
+/// (AAD = credential id) and never leaves the server.
+model SigningCredential {
+  id                  String           @id @default(cuid())
+  facultyId           String
+  faculty             User             @relation(fields: [facultyId], references: [id])
+  keyId               String           @unique
+  publicKeyPem        String
+  encryptedPrivateKey String
+  status              CredentialStatus @default(ACTIVE)
+  createdAt           DateTime         @default(now())
+  retiredAt           DateTime?
+  revokedReason       String?
+
+  signatures Signature[]
+
+  @@index([facultyId, status])
+  @@map("signing_credential")
+}
+
+model Signature {
+  id               String            @id
+  code             String            @unique
+  documentId       String
+  document         Document          @relation(fields: [documentId], references: [id])
+  versionId        String
+  version          DocumentVersion   @relation(fields: [versionId], references: [id])
+  credentialId     String
+  credential       SigningCredential @relation(fields: [credentialId], references: [id])
+  decision         String
+  payload          String
+  signature        String
+  originalSha256   String
+  signedSha256     String            @unique
+  signedStorageKey String            @unique
+  signedAt         DateTime
+
+  @@index([originalSha256])
+  @@map("signature")
 }

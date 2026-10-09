@@ -12,13 +12,15 @@
     "e2e": "playwright test",
     "db:up": "docker compose up -d",
     "db:migrate": "prisma migrate dev",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "better-auth": "^1.7.7",
     "next": "16.4.0",
+    "pdf-lib": "^1.17.1",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
     "react": "19.3.0",

@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   // dynamic instead of Cache Components' static-shell model.
   cacheComponents: false,
   devIndicators: { position: "bottom-right" },
+  // Student documents must never end up in a deploy artifact.
+  outputFileTracingExcludes: { "/*": ["storage/**/*", ".test-storage/**/*"] },
   turbopack: {
     rules: {
       "*.css": {
