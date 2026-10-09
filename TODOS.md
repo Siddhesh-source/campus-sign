@@ -4,8 +4,17 @@
 - **What:** Choose hosting (e.g. Vercel + managed Postgres, or VIT on-prem), create the Google OAuth client restricted to `vit.edu`, add health checks, metrics and alerts.
 - **Why:** Phase 1 runs locally with dev sign-in; real users need a deployed instance.
 - **Pros:** Unblocks real usage. **Cons:** Hosting cost/decision needed.
-- **Context:** `/api/health` exists; migrations run via `prisma migrate deploy`. Dev auth must stay disabled in prod (startup assertion enforces it).
+- **Context:** add an `/api/health` DB-ping route; migrations run via `prisma migrate deploy`. Dev auth must stay disabled in prod (startup assertion enforces it).
 - **Effort:** human M / CC S. **Depends on:** Phase 1 complete.
+
+## P2 — Upload rate limit + S3 storage adapter
+- **What:** Add a per-user upload rate limit. Add an S3-compatible `putFile`/`getFile` behind `src/server/storage.ts`, and a sweeper for orphaned files whose DB transaction rolled back.
+- **Why:** Local disk is fine for one server, but not for multi-instance deploys. Uploads are capped at 10 MB but not rate-limited.
+- **Effort:** human M / CC S. **Depends on:** deploy target.
+
+## P2 — Admin view of signing credentials
+- **What:** An admin page that lists every faculty signing key, with a revoke button. The service already supports admin revocation via `revokeCredential`, and revoking faculty access already revokes their keys.
+- **Effort:** human S / CC S.
 
 ## P2 — Hash-chained audit log
 - **What:** Each `audit_events` row stores `hash(prev_hash || canonical(row))`; Phase 3 anchors chain heads on the permissioned blockchain.
