@@ -13,12 +13,15 @@ function navFor(user: CurrentUser): NavItem[] {
       ];
     case "FACULTY":
       return [
+        { href: "/inbox", label: "Inbox" },
         { href: "/dashboard", label: "Classes", exact: true },
         { href: "/classes/new", label: "New class" },
+        { href: "/signing", label: "Signing key" },
       ];
     default:
       return [
         { href: "/dashboard", label: "My classes", exact: true },
+        { href: "/documents", label: "Documents" },
         { href: "/join", label: "Join a class" },
       ];
   }

@@ -18,7 +18,17 @@ export type AuditAction =
   | "enrollment.join"
   | "enrollment.leave"
   | "code.lookup.failed"
-  | "code.lookup.locked";
+  | "code.lookup.locked"
+  | "document.create"
+  | "document.version"
+  | "document.submit"
+  | "document.review_start"
+  | "document.reject"
+  | "document.request_corrections"
+  | "document.approve_sign"
+  | "credential.create"
+  | "credential.rotate"
+  | "credential.revoke";
 
 export type RequestMeta = { ip?: string | null; userAgent?: string | null };
 

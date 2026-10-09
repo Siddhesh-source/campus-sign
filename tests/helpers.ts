@@ -23,3 +23,14 @@ export const validClass = {
   studentLimit: "60",
   codeExpiry: "7",
 };
+
+import { PDFDocument, StandardFonts } from "pdf-lib";
+
+export async function makePdf(text = "Lab report", pages = 1): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  for (let i = 0; i < pages; i++) doc.addPage([595, 842]).drawText(`${text} p${i + 1}`, { x: 50, y: 780, size: 14, font });
+  return doc.save();
+}
+
+export const LAB_REPORT = "dt_lab_report";

@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { db } from "./db";
 import { audit, type RequestMeta } from "./audit";
+import { revokeCredentialsForEmail } from "./signing";
 import { UserFacingError } from "./errors";
 import { isInstitutionEmail, normalizeEmail } from "@/lib/identity";
 import type { CurrentUser } from "./auth";
@@ -43,6 +44,8 @@ export async function decideFacultyAccess(admin: CurrentUser, id: string, decisi
     });
     if (res.count === 0) throw new UserFacingError("STALE", "Someone already changed this request. Refresh to see the latest.");
     const row = await tx.facultyAccess.findUniqueOrThrow({ where: { id } });
+    // Losing faculty access also kills every signing key that person holds.
+    if (decision === "revoke") await revokeCredentialsForEmail(tx, row.email, "Faculty access revoked by administrator");
     await audit(tx, { actor: admin, action: t.action, targetType: "faculty_access", targetId: row.email, meta });
   });
 }

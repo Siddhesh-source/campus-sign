@@ -297,6 +297,8 @@ p {
 
   /* Ledger table */
   .ledger {
+    /* Contain absolutely-positioned children (sr-only labels) inside the scroll wrapper. */
+    position: relative;
     width: 100%;
     border-collapse: collapse;
     font-size: 14px;

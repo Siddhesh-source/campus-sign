@@ -24,7 +24,7 @@ export default async function AdminPage() {
       </p>
 
       <div className="mt-8 grid items-start gap-10 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-10">
+        <div className="min-w-0 space-y-10">
           <section aria-labelledby="pending-h">
             <h2 id="pending-h" className="heading border-b border-rule pb-2.5 text-[17px]">
               Waiting for review <span className="mono ml-1 text-[13px] font-medium text-muted">{pending.length}</span>

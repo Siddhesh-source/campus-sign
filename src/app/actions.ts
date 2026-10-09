@@ -7,6 +7,8 @@ import { runAction, type ActionResult } from "@/server/errors";
 import { createClass, removeStudent, revokeCode, rotateCode, setCodeExpiry } from "@/server/classes";
 import { joinClass, leaveClass, lookupCode, type ClassPreview } from "@/server/enrollment";
 import { addFacultyEmail, decideFacultyAccess, requestFacultyAccess } from "@/server/faculty";
+import { decideDocument, submitDocument } from "@/server/documents";
+import { approveAndSign, createCredential, revokeCredential, rotateCredential, verifyHash } from "@/server/signing";
 
 // ── Student ───────────────────────────────────────────────────────────────
 
@@ -95,4 +97,61 @@ export async function addFacultyAction(_prev: ActionResult | null, form: FormDat
   });
   if (result.ok) revalidatePath("/admin");
   return result;
+}
+
+// ── Documents (Phase 2) ───────────────────────────────────────────────────
+
+export async function submitDocumentAction(documentId: string, versionId: string) {
+  const result = await runAction("submitDocument", async () =>
+    submitDocument(await requireActor("STUDENT"), documentId, versionId, await requestMeta()),
+  );
+  if (result.ok) revalidatePath(`/documents/${documentId}`);
+  return result;
+}
+
+export async function decideDocumentAction(documentId: string, input: { versionId: string; decision: "REJECT" | "REQUEST_CORRECTIONS"; reason: string }) {
+  const result = await runAction("decideDocument", async () =>
+    decideDocument(await requireActor("FACULTY"), documentId, input, await requestMeta()),
+  );
+  if (result.ok) revalidatePath(`/review/${documentId}`);
+  return result;
+}
+
+// ── Signing (Phase 3) ─────────────────────────────────────────────────────
+
+export async function approveAndSignAction(documentId: string, input: { versionId: string; expectedSha256: string; confirm: boolean }) {
+  const result = await runAction("approveAndSign", async () =>
+    approveAndSign(await requireActor("FACULTY"), documentId, input, await requestMeta()),
+  );
+  if (result.ok) revalidatePath(`/review/${documentId}`);
+  return result;
+}
+
+export async function createCredentialAction() {
+  const result = await runAction("createCredential", async () => {
+    await createCredential(await requireActor("FACULTY"), await requestMeta());
+  });
+  if (result.ok) revalidatePath("/signing");
+  return result;
+}
+
+export async function rotateCredentialAction() {
+  const result = await runAction("rotateCredential", async () => {
+    await rotateCredential(await requireActor("FACULTY"), await requestMeta());
+  });
+  if (result.ok) revalidatePath("/signing");
+  return result;
+}
+
+export async function revokeCredentialAction(credentialId: string, reason: string) {
+  const result = await runAction("revokeCredential", async () =>
+    revokeCredential(await requireActor("FACULTY", "ADMIN"), credentialId, reason, await requestMeta()),
+  );
+  if (result.ok) revalidatePath("/signing");
+  return result;
+}
+
+/** Public: no session needed. Only a hash leaves the browser. */
+export async function verifyHashAction(sha256: string) {
+  return runAction("verifyHash", () => verifyHash(String(sha256).slice(0, 80)));
 }

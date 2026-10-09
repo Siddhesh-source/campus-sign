@@ -19,6 +19,9 @@ export default defineConfig({
     env: {
       NODE_ENV: "test",
       DATABASE_URL: "postgresql://campusign:campusign@localhost:54329/campusign_test",
+      SIGNING_KEK: "dGVzdC1rZWstMzItYnl0ZXMtZm9yLWNhbXB1c2lnbiE=",
+      STORAGE_DIR: "./.test-storage",
+      BETTER_AUTH_URL: "https://campussign.test",
     },
   },
 });
