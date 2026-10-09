@@ -8,6 +8,7 @@ import { inspectPdf } from "./pdf";
 import { putFile } from "./storage";
 import { enqueueLedgerEvent } from "./ledger/outbox";
 import type { CurrentUser } from "./auth";
+import { currentStepOf, isCurrentApprover, reachedApprovers, routeForType } from "./routes";
 
 /** Statuses in which the student may upload a new version. */
 const EDITABLE: DocumentStatus[] = ["DRAFT", "CORRECTIONS_REQUESTED"];
@@ -23,13 +24,14 @@ export async function listDocumentTypes() {
 // ── Access ────────────────────────────────────────────────────────────────
 
 /**
- * The single access rule: the owning student, or the faculty member who owns
- * the class. Everyone else (other students, other faculty, admins) gets
- * NOT_FOUND so existence isn't leaked.
+ * The single access rule: the owning student; the faculty who owns the class;
+ * or a designated route approver once the document has reached their step.
+ * Everyone else (other students, other faculty, admins) gets NOT_FOUND so
+ * existence isn't leaked.
  */
-export function canView(actor: CurrentUser, doc: { studentId: string; class: { facultyId: string } }) {
+export function canView(actor: CurrentUser, doc: { studentId: string; approverEmails?: string[]; class: { facultyId: string } }) {
   if (actor.role === "STUDENT") return doc.studentId === actor.id;
-  if (actor.role === "FACULTY") return doc.class.facultyId === actor.id;
+  if (actor.role === "FACULTY") return doc.class.facultyId === actor.id || (doc.approverEmails ?? []).includes(actor.email);
   return false;
 }
 
@@ -143,8 +145,19 @@ export async function submitDocument(actor: CurrentUser, documentId: string, ver
     if (doc.currentVersionId !== versionId) throw new UserFacingError("STALE", "A newer version exists. Review it before submitting.");
     await requireActiveEnrollment(tx, actor.id, doc.classId);
     const now = new Date();
+    // Freeze the approval route; every (re)submission starts again at step 1.
+    const route = await routeForType(tx, doc.typeId);
     await tx.documentVersion.update({ where: { id: versionId }, data: { submittedAt: now } });
-    await tx.document.update({ where: { id: documentId }, data: { status: "SUBMITTED", submittedAt: now } });
+    await tx.document.update({
+      where: { id: documentId },
+      data: {
+        status: "SUBMITTED",
+        submittedAt: now,
+        routeSnapshot: route,
+        currentStep: 1,
+        approverEmails: { set: [...new Set([...doc.approverEmails, ...reachedApprovers(route, 1)])] },
+      },
+    });
     await tx.documentEvent.create({ data: { documentId, versionId, actorId: actor.id, actorRole: "STUDENT", type: "SUBMITTED" } });
     await enqueueLedgerEvent(tx, {
       type: "SUBMITTED",
@@ -165,9 +178,11 @@ export async function startReview(actor: CurrentUser, documentId: string, meta: 
   return db.$transaction(async (tx) => {
     const doc = await lockDocument(tx, documentId);
     if (!canView(actor, doc) || actor.role !== "FACULTY") throw notFound();
-    if (doc.status !== "SUBMITTED") return;
+    if (doc.status !== "SUBMITTED" || !isCurrentApprover(actor, doc)) return;
     await tx.document.update({ where: { id: documentId }, data: { status: "PENDING_REVIEW" } });
-    await tx.documentEvent.create({ data: { documentId, versionId: doc.currentVersionId, actorId: actor.id, actorRole: "FACULTY", type: "REVIEW_STARTED" } });
+    await tx.documentEvent.create({
+      data: { documentId, versionId: doc.currentVersionId, actorId: actor.id, actorRole: "FACULTY", type: "REVIEW_STARTED", step: doc.currentStep },
+    });
     await audit(tx, { actor, action: "document.review_start", targetType: "document", targetId: documentId, meta });
   });
 }
@@ -193,10 +208,19 @@ export async function decideDocument(actor: CurrentUser, documentId: string, inp
     const doc = await lockDocument(tx, documentId);
     if (!canView(actor, doc) || actor.role !== "FACULTY") throw notFound();
     assertDecidable(doc, versionId);
+    assertCurrentApprover(actor, doc);
     const status: DocumentStatus = decision === "REJECT" ? "REJECTED" : "CORRECTIONS_REQUESTED";
     await tx.document.update({ where: { id: documentId }, data: { status } });
     await tx.documentEvent.create({
-      data: { documentId, versionId, actorId: actor.id, actorRole: "FACULTY", type: decision === "REJECT" ? "REJECTED" : "CORRECTIONS_REQUESTED", reason },
+      data: {
+        documentId,
+        versionId,
+        actorId: actor.id,
+        actorRole: "FACULTY",
+        type: decision === "REJECT" ? "REJECTED" : "CORRECTIONS_REQUESTED",
+        step: doc.currentStep,
+        reason,
+      },
     });
     // On-chain: the event and the exact version only. The reason never leaves Postgres.
     await enqueueLedgerEvent(tx, {
@@ -217,6 +241,14 @@ export async function decideDocument(actor: CurrentUser, documentId: string, inp
   });
 }
 
+/** Only the approver of the current route step may decide or sign. */
+export function assertCurrentApprover(actor: CurrentUser, doc: Parameters<typeof isCurrentApprover>[1]) {
+  if (!isCurrentApprover(actor, doc)) {
+    const step = currentStepOf(doc);
+    throw new UserFacingError("FORBIDDEN", `This document is waiting for ${step.label}. Only that approver can decide at this step.`);
+  }
+}
+
 export function assertDecidable(doc: { status: DocumentStatus; currentVersionId: string | null }, versionId: string) {
   if (!DECIDABLE.includes(doc.status)) throw new UserFacingError("STALE", "A decision was already recorded for this document.");
   if (doc.currentVersionId !== versionId) throw new UserFacingError("STALE", "This isn't the version you reviewed anymore. Reload to see the latest.");
@@ -230,7 +262,10 @@ const detailInclude = {
   student: { select: { id: true, name: true, email: true } },
   versions: { orderBy: { number: "desc" } },
   events: { orderBy: { createdAt: "asc" } },
-  signatures: { orderBy: { signedAt: "desc" }, select: { id: true, code: true, signedAt: true, signedSha256: true, versionId: true } },
+  signatures: {
+    orderBy: { signedAt: "desc" },
+    select: { id: true, code: true, signedAt: true, signedSha256: true, versionId: true, stepOrder: true, totalSteps: true, credential: { select: { faculty: { select: { name: true } } } } },
+  },
 } satisfies Prisma.DocumentInclude;
 
 export type DocumentDetail = Prisma.DocumentGetPayload<{ include: typeof detailInclude }> & {
@@ -268,7 +303,8 @@ export async function listStudentDocuments(studentId: string) {
 export const INBOX_SORTS = ["newest", "oldest", "class", "status"] as const;
 export type InboxFilter = { status?: string; classId?: string; typeId?: string; sort?: string };
 
-export async function listInbox(facultyId: string, f: InboxFilter) {
+export async function listInbox(faculty: { id: string; email: string }, f: InboxFilter) {
+  const facultyId = faculty.id;
   const visible: DocumentStatus[] = ["SUBMITTED", "PENDING_REVIEW", "APPROVED", "CORRECTIONS_REQUESTED", "REJECTED"];
   const status = visible.includes(f.status as DocumentStatus) ? (f.status as DocumentStatus) : undefined;
   const orderBy: Prisma.DocumentOrderByWithRelationInput[] =
@@ -281,7 +317,7 @@ export async function listInbox(facultyId: string, f: InboxFilter) {
           : [{ submittedAt: "desc" }];
   return db.document.findMany({
     where: {
-      class: { facultyId },
+      OR: [{ class: { facultyId } }, { approverEmails: { has: faculty.email } }],
       status: status ? status : { in: visible },
       ...(f.classId ? { classId: f.classId } : {}),
       ...(f.typeId ? { typeId: f.typeId } : {}),
@@ -289,7 +325,7 @@ export async function listInbox(facultyId: string, f: InboxFilter) {
     orderBy,
     take: 200,
     include: {
-      class: { select: { id: true, name: true, division: true, yearOfStudy: true } },
+      class: { select: { id: true, name: true, division: true, yearOfStudy: true, facultyId: true } },
       type: true,
       student: { select: { name: true, email: true } },
       current: { select: { number: true, sha256: true } },

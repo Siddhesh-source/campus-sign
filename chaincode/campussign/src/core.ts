@@ -17,6 +17,8 @@ export const ALLOWED_KEYS = [
   "sha256",
   "signedSha256",
   "signerKeyId",
+  "stepOrder",
+  "totalSteps",
   "occurredAt",
 ] as const;
 
@@ -29,6 +31,9 @@ export type LedgerEventInput = {
   sha256?: string;
   signedSha256?: string;
   signerKeyId?: string;
+  /** Approval route position (APPROVED only): step k of N. */
+  stepOrder?: number;
+  totalSteps?: number;
   occurredAt: string;
 };
 
@@ -80,6 +85,12 @@ export function validateEvent(raw: unknown): LedgerEventInput {
   if (o.signedSha256 !== undefined) need(typeof o.signedSha256 === "string" && HEX64.test(o.signedSha256), "bad signedSha256");
   if (o.signerKeyId !== undefined) need(typeof o.signerKeyId === "string" && KEY_ID.test(o.signerKeyId), "bad signerKeyId");
 
+  for (const k of ["stepOrder", "totalSteps"] as const) {
+    if (o[k] !== undefined) need(Number.isInteger(o[k]) && (o[k] as number) >= 1 && (o[k] as number) <= 10, `bad ${k}`);
+  }
+  if (o.stepOrder !== undefined || o.totalSteps !== undefined) {
+    need(o.stepOrder !== undefined && o.totalSteps !== undefined && (o.stepOrder as number) <= (o.totalSteps as number), "stepOrder must be within totalSteps");
+  }
   const t = o.type as LedgerEventType;
   if (t === "KEY_REVOKED") {
     need(o.signerKeyId, "KEY_REVOKED needs signerKeyId");

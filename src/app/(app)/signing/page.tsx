@@ -43,7 +43,7 @@ export default async function SigningPage() {
       </div>
 
       {creds.length > 0 && (
-        <div className="mt-8 overflow-x-auto">
+        <div className="mt-8 overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
           <table className="ledger">
             <thead>
               <tr>

@@ -217,11 +217,12 @@ model CodeLookupLimit {
 // ── Phase 2: documents ─────────────────────────────────────────────────────
 
 model DocumentType {
-  id        String     @id @default(cuid())
-  code      String     @unique
+  id        String         @id @default(cuid())
+  code      String         @unique
   name      String
-  active    Boolean    @default(true)
+  active    Boolean        @default(true)
   documents Document[]
+  steps     ApprovalStep[]
 
   @@map("document_type")
 }
@@ -252,6 +253,11 @@ model Document {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   submittedAt      DateTime?
+  /// Approval route frozen at submission: [{order,label,kind,approverEmail?}]
+  routeSnapshot    Json?
+  currentStep      Int            @default(1)
+  /// Designated approvers whose step this document has reached (drives access + inbox).
+  approverEmails   String[]       @default([])
 
   versions   DocumentVersion[] @relation("DocumentVersions")
   current    DocumentVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id])
@@ -306,11 +312,31 @@ model DocumentEvent {
   actorId    String
   actorRole  String
   type       DocumentEventType
+  step       Int?
   reason     String?
   createdAt  DateTime          @default(now())
 
   @@index([documentId, createdAt])
   @@map("document_event")
+}
+
+enum ApproverKind {
+  CLASS_FACULTY
+  DESIGNATED
+}
+
+/// Ordered approval route for a document type. No rows = one step: the class faculty.
+model ApprovalStep {
+  id            String       @id @default(cuid())
+  typeId        String
+  type          DocumentType @relation(fields: [typeId], references: [id], onDelete: Cascade)
+  order         Int
+  label         String
+  kind          ApproverKind
+  approverEmail String?
+
+  @@unique([typeId, order])
+  @@map("approval_step")
 }
 
 // ── Phase 3: signing ───────────────────────────────────────────────────────
@@ -357,6 +383,10 @@ model Signature {
   signedSha256     String            @unique
   signedStorageKey String            @unique
   signedAt         DateTime
+  stepOrder        Int               @default(1)
+  totalSteps       Int               @default(1)
+  /// Signature of the previous route step (its signed PDF is what this step stamped).
+  previousSignatureId String?
 
   @@index([originalSha256])
   @@map("signature")
@@ -384,6 +414,8 @@ model LedgerOutbox {
   status        LedgerOutboxStatus @default(PENDING)
   attempts      Int                @default(0)
   nextAttemptAt DateTime           @default(now())
+  /// Lease: a relay owns this row until then (no DB transaction is held during the ledger call).
+  lockedUntil   DateTime?
   lastError     String?
   txId          String?
   blockNumber   BigInt?

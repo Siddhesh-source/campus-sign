@@ -109,7 +109,7 @@ async function FacultyHome({ user }: { user: CurrentUser }) {
               </span>
             )}
           </p>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
             <table className="ledger min-w-[640px]">
               <thead>
                 <tr>
@@ -135,9 +135,9 @@ async function FacultyHome({ user }: { user: CurrentUser }) {
                       </td>
                       <td className="mono text-[13px] tracking-[0.03em]">
                         {c.code ? (
-                          <span className={live ? "" : "text-faint line-through"}>{c.code.code}</span>
+                          <span className={live ? "" : "text-muted line-through"}>{c.code.code}</span>
                         ) : (
-                          <span className="text-faint">No active code</span>
+                          <span className="text-muted">No active code</span>
                         )}
                       </td>
                       <td>

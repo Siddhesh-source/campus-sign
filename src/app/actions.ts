@@ -171,7 +171,15 @@ export async function revokeCredentialAction(credentialId: string, reason: strin
 
 /** Public: no session needed. Only a hash leaves the browser. */
 export async function verifyHashAction(sha256: string) {
-  return runAction("verifyHash", () => verifyHash(String(sha256).slice(0, 80)));
+  return runAction("verifyHash", async () => {
+    const { allowPublic } = await import("@/server/public-limit");
+    const meta = await requestMeta();
+    if (!allowPublic(`verify:${meta.ip ?? "unknown"}`)) {
+      const { UserFacingError } = await import("@/server/errors");
+      throw new UserFacingError("RATE_LIMITED", "Too many checks from your network. Wait a minute and try again.");
+    }
+    return verifyHash(String(sha256).slice(0, 80));
+  });
 }
 
 // ── Ledger (Phase 4, admin) ───────────────────────────────────────────────
@@ -196,5 +204,34 @@ export async function reconcileAction() {
     return { checked: report.checked, onChain: report.onChain, mismatches: report.mismatches.length, off: false };
   });
   revalidatePath("/admin/ledger");
+  return result;
+}
+
+// ── Admin: document types and routes (Phase 5) ────────────────────────────
+
+export async function createDocumentTypeAction(_prev: ActionResult | null, form: FormData): Promise<ActionResult> {
+  const result = await runAction("createDocumentType", async () => {
+    const { createDocumentType } = await import("@/server/routes");
+    await createDocumentType(await requireActor("ADMIN"), { name: form.get("name"), code: form.get("code") }, await requestMeta());
+  });
+  if (result.ok) revalidatePath("/admin/document-types");
+  return result;
+}
+
+export async function updateDocumentTypeAction(typeId: string, input: { name?: string; active?: boolean }) {
+  const result = await runAction("updateDocumentType", async () => {
+    const { updateDocumentType } = await import("@/server/routes");
+    await updateDocumentType(await requireActor("ADMIN"), typeId, input, await requestMeta());
+  });
+  if (result.ok) revalidatePath("/admin/document-types");
+  return result;
+}
+
+export async function setRouteAction(typeId: string, steps: { label: string; kind: "CLASS_FACULTY" | "DESIGNATED"; approverEmail?: string }[]) {
+  const result = await runAction("setRoute", async () => {
+    const { setRoute } = await import("@/server/routes");
+    await setRoute(await requireActor("ADMIN"), typeId, steps, await requestMeta());
+  });
+  if (result.ok) revalidatePath("/admin/document-types");
   return result;
 }

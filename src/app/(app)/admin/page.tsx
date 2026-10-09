@@ -60,7 +60,7 @@ export default async function AdminPage() {
 
 function AccessTable({ rows }: { rows: Awaited<ReturnType<typeof listFacultyAccess>> }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
       <table className="ledger">
         <thead>
           <tr>

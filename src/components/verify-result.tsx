@@ -22,6 +22,13 @@ function headline(r: VerifyResult, checkedFile: boolean): Head {
     return { title: "Signature invalid", body: "The signing record doesn't match its cryptographic signature. Treat this document as untrusted.", tone: "bad" };
   }
   const subject = checkedFile ? "This file is exactly what was approved and signed" : "This code belongs to a document approved and signed through CampusSign";
+  if (r.complete === false && r.record) {
+    return {
+      title: `Approved at step ${r.record.stepOrder} of ${r.record.totalSteps}`,
+      body: `Every signature so far checks out, but this is an intermediate copy: the approval route isn't finished${r.nextStepLabel ? ` (waiting for ${r.nextStepLabel})` : ""}. It isn't fully verified until the last step signs.`,
+      tone: "wait",
+    };
+  }
   switch (r.ledger?.state) {
     case "CONFIRMED":
       return { title: "Fully verified", body: `${subject}. The signature checks out and the approval is confirmed on the blockchain.`, tone: "ok" };
@@ -72,6 +79,39 @@ export function VerifyResultCard({ result, checkedFile }: { result: VerifyResult
           {!checkedFile && r && <p className="mt-2 text-[13.5px] text-muted">Drop the PDF below to confirm the file itself.</p>}
         </div>
       </div>
+
+      {result.chain && result.chain.length > 0 && r && r.totalSteps > 1 && (
+        <section aria-label="Approval route" className="mt-6 border-t border-dashed border-rule-strong pt-5">
+          <h3 className="label-caps mb-3">Approval route</h3>
+          <ol className="space-y-3">
+            {result.chain.map((s) => (
+              <li key={s.code} className="grid gap-1 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-4">
+                <div className="min-w-0">
+                  <div className="text-[14px] font-semibold">
+                    <span className="mono mr-2 text-[12px] text-muted">
+                      {s.stepOrder}/{s.totalSteps}
+                    </span>
+                    {s.stepLabel} · {s.signerName}
+                  </div>
+                  <div className="mono text-[11.5px] text-muted">
+                    {fmtStamp(s.signedAt)} · {s.code}
+                  </div>
+                </div>
+                <span className={`status ${s.signature === "VALID" ? "status-active" : "status-error"}`}>{s.signature === "VALID" ? "Signature valid" : s.signature.toLowerCase().replace("_", " ")}</span>
+                <LedgerStatus status={s.ledger.state} />
+              </li>
+            ))}
+            {r.stepOrder < r.totalSteps && (
+              <li className="text-[13.5px] text-muted">
+                <span className="mono mr-2 text-[12px]">
+                  {r.stepOrder + 1}/{r.totalSteps}
+                </span>
+                {result.nextStepLabel ?? "Next approver"} · not signed yet
+              </li>
+            )}
+          </ol>
+        </section>
+      )}
 
       {r && (
         <div className="mt-6 grid gap-5 border-t border-dashed border-rule-strong pt-5 md:grid-cols-2">

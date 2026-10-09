@@ -37,6 +37,10 @@ export type CertificateInfo = {
   versionNumber: number;
   originalSha256: string;
   signedAt: Date;
+  /** Approval route position; omitted for single-step routes. */
+  stepOrder?: number;
+  totalSteps?: number;
+  stepLabel?: string;
 };
 
 const INK = rgb(0.06, 0.1, 0.09);
@@ -77,7 +81,7 @@ export async function stampSignedPdf(original: Uint8Array, info: CertificateInfo
   y -= 36;
 
   const rows: [string, string, PDFFont][] = [
-    ["Decision", "Approved", font],
+    ["Decision", info.totalSteps && info.totalSteps > 1 ? `Approved · step ${info.stepOrder} of ${info.totalSteps} (${info.stepLabel})` : "Approved", font],
     ["Signed by", info.signerName, font],
     ["Class", info.className, font],
     ["Document type", info.documentType, font],

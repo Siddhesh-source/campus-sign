@@ -53,3 +53,4 @@ next-env.d.ts
 
 # local Hyperledger Fabric test network (downloaded)
 /.fabric/
+/backups/

@@ -59,7 +59,7 @@ export default async function LedgerPage() {
         {o.mismatches.length === 0 ? (
           <p className="pt-4 text-[14px] text-ink-2">None. Run a reconciliation to compare every confirmed event with the ledger.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
             <table className="ledger">
               <thead>
                 <tr>
@@ -86,7 +86,7 @@ export default async function LedgerPage() {
         <h2 id="ev-h" className="heading border-b border-rule pb-2.5 text-[17px]">
           Recent events
         </h2>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
           <table className="ledger min-w-[760px]">
             <thead>
               <tr>

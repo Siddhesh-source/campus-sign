@@ -118,7 +118,7 @@ export function CreateClassForm({
           </div>
           <div className="text-[13px] text-muted">{facultyName}</div>
           <div className="mono mt-4 mb-1 text-[24px] font-semibold tracking-[0.04em]">
-            {prefix}–<span className="text-faint">•••••</span>
+            {prefix}–<span className="text-muted" aria-label="five characters generated on create">•••••</span>
           </div>
           <div className="hint">The last five characters are generated when you create the class.</div>
           <div className="mono mt-3 flex flex-wrap gap-3 border-t border-dashed border-rule-strong pt-3 text-[11.5px] tracking-[0.04em] text-muted uppercase">

@@ -8,6 +8,8 @@ import { DocStatus, Hash, Timeline, fmtBytes } from "@/components/doc-ui";
 import { classLine, fmtStamp } from "@/lib/format";
 import { documentLedgerRows } from "@/server/ledger/status";
 import { DocumentLedgerPanel } from "@/components/ledger-ui";
+import { RouteProgress } from "@/components/route-progress";
+import { currentStepOf, isCurrentApprover, routeOf } from "@/server/routes";
 import { DecisionPanel } from "./review-client";
 
 export const metadata: Metadata = { title: "Review" };
@@ -80,7 +82,14 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
         </section>
 
         <aside className="grid gap-4">
-          {DECIDABLE.includes(doc.status) && reviewVersion ? (
+          {DECIDABLE.includes(doc.status) && reviewVersion && !isCurrentApprover(user, doc) ? (
+            <div className="panel space-y-1.5 p-5">
+              <h2 className="heading text-[16px]">Waiting for {currentStepOf(doc).label}</h2>
+              <p className="text-[13.5px] text-ink-2">
+                Step {doc.currentStep} of {routeOf(doc).length}. You can read the document and its history; only that approver can decide at this step.
+              </p>
+            </div>
+          ) : DECIDABLE.includes(doc.status) && reviewVersion ? (
             <DecisionPanel
               documentId={doc.id}
               versionId={reviewVersion.id}
@@ -136,6 +145,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
               </ul>
             </div>
           )}
+          <RouteProgress route={routeOf(doc)} currentStep={doc.currentStep} status={doc.status} signatures={doc.signatures} versionId={doc.currentVersionId} />
           <DocumentLedgerPanel rows={ledgerRows} />
 
 

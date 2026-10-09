@@ -9,6 +9,8 @@ function navFor(user: CurrentUser): NavItem[] {
     case "ADMIN":
       return [
         { href: "/admin", label: "Faculty access", exact: true },
+        { href: "/admin/document-types", label: "Document types" },
+        { href: "/admin/credentials", label: "Signing keys" },
         { href: "/admin/audit", label: "Audit log" },
         { href: "/admin/ledger", label: "Blockchain" },
       ];
@@ -18,12 +20,14 @@ function navFor(user: CurrentUser): NavItem[] {
         { href: "/dashboard", label: "Classes", exact: true },
         { href: "/classes/new", label: "New class" },
         { href: "/signing", label: "Signing key" },
+        { href: "/activity", label: "Activity" },
       ];
     default:
       return [
         { href: "/dashboard", label: "My classes", exact: true },
         { href: "/documents", label: "Documents" },
         { href: "/join", label: "Join a class" },
+        { href: "/activity", label: "Activity" },
       ];
   }
 }
@@ -41,6 +45,9 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[232px_1fr]">
+      <a href="#main" className="skip-link">
+        Skip to content
+      </a>
       {/* Desktop rail */}
       <aside className="sticky top-0 hidden h-dvh flex-col gap-0.5 border-r border-rule bg-surface px-3 py-5 lg:flex">
         <div className="px-2 pb-6">
@@ -100,7 +107,9 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
         </nav>
       </header>
 
-      <main className="min-w-0">{children}</main>
+      <main id="main" tabIndex={-1} className="min-w-0 outline-none">
+        {children}
+      </main>
     </div>
   );
 }

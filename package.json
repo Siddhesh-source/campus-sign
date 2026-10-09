@@ -18,7 +18,13 @@
     "ledger:down": "bash infra/fabric/network.sh down",
     "ledger:relay": "tsx --conditions=react-server scripts/ledger.ts relay",
     "ledger:reconcile": "tsx --conditions=react-server scripts/ledger.ts reconcile",
-    "ledger:smoke": "tsx --conditions=react-server scripts/ledger.ts smoke"
+    "ledger:smoke": "tsx --conditions=react-server scripts/ledger.ts smoke",
+    "ops:backup": "bash scripts/ops/backup.sh",
+    "ops:restore": "bash scripts/ops/restore.sh",
+    "ops:rotate-kek": "tsx --conditions=react-server scripts/ops/cli.ts rotate-kek",
+    "ops:affected": "tsx --conditions=react-server scripts/ops/cli.ts affected",
+    "db:seed": "tsx --conditions=react-server scripts/seed.ts",
+    "setup": "pnpm db:up && pnpm prisma migrate deploy && pnpm db:seed"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.6",
@@ -36,6 +42,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.64.0",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",

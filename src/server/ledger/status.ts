@@ -56,7 +56,19 @@ export type DocumentLedgerRow = {
   createdAt: Date;
   confirmedAt: Date | null;
   lastError: string | null;
+  /** Approval step this event belongs to, for multi-step routes. */
+  stepOrder: number | null;
+  totalSteps: number | null;
 };
+
+function stepOf(payload: string) {
+  try {
+    const p = JSON.parse(payload) as { stepOrder?: number; totalSteps?: number };
+    return { stepOrder: p.stepOrder ?? null, totalSteps: p.totalSteps ?? null };
+  } catch {
+    return { stepOrder: null, totalSteps: null };
+  }
+}
 
 /** Local view of every ledger event for a document (for the document/review pages). */
 export async function documentLedgerRows(documentId: string): Promise<DocumentLedgerRow[]> {
@@ -71,6 +83,7 @@ export async function documentLedgerRows(documentId: string): Promise<DocumentLe
     createdAt: r.createdAt,
     confirmedAt: r.confirmedAt,
     lastError: r.lastError,
+    ...stepOf(r.payload),
   }));
 }
 

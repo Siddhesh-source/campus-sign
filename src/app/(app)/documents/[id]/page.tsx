@@ -8,6 +8,8 @@ import { GuillocheBand } from "@/components/guilloche";
 import { classLine, fmtStamp } from "@/lib/format";
 import { documentLedgerRows } from "@/server/ledger/status";
 import { DocumentLedgerPanel } from "@/components/ledger-ui";
+import { RouteProgress } from "@/components/route-progress";
+import { currentStepOf, routeOf } from "@/server/routes";
 import { NewVersionForm, SubmitPanel } from "./document-client";
 
 export const metadata: Metadata = { title: "Document" };
@@ -23,7 +25,9 @@ export default async function DocumentPage({ params, searchParams }: { params: P
   const lastDecision = [...doc.events].reverse().find((e) => e.type === "CORRECTIONS_REQUESTED" || e.type === "REJECTED");
   const versionNumbers = Object.fromEntries(doc.versions.map((v) => [v.id, v.number]));
   const ledgerRows = await documentLedgerRows(doc.id);
-  const approvalOnChain = ledgerRows.find((r) => r.type === "APPROVED")?.status === "CONFIRMED";
+  // Every step's approval must be on-chain, not just the first one.
+  const approvals = ledgerRows.filter((r) => r.type === "APPROVED");
+  const approvalOnChain = approvals.length > 0 && approvals.every((r) => r.status === "CONFIRMED");
 
   return (
     <div className="px-4 py-8 sm:px-8 sm:py-10">
@@ -78,7 +82,8 @@ export default async function DocumentPage({ params, searchParams }: { params: P
             <div className="panel space-y-1.5 p-5">
               <h2 className="heading text-[16px]">{doc.status === "SUBMITTED" ? "Waiting for review" : "In review"}</h2>
               <p className="text-[14px] text-ink-2">
-                {doc.class.faculty.name} {doc.status === "SUBMITTED" ? "hasn't opened it yet" : "is reviewing version " + current.number}. This version is locked.
+                {routeOf(doc).length > 1 ? `Step ${doc.currentStep} of ${routeOf(doc).length}: ${currentStepOf(doc).label}` : doc.class.faculty.name}{" "}
+                {doc.status === "SUBMITTED" ? "hasn't opened it yet" : `is reviewing version ${current.number}`}. This version is locked.
               </p>
             </div>
           )}
@@ -134,6 +139,7 @@ export default async function DocumentPage({ params, searchParams }: { params: P
               ))}
             </ul>
           </div>
+          <RouteProgress route={routeOf(doc)} currentStep={doc.currentStep} status={doc.status} signatures={doc.signatures} versionId={doc.currentVersionId} />
           <DocumentLedgerPanel rows={ledgerRows} />
 
 

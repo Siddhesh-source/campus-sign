@@ -30,7 +30,10 @@ export function DocumentLedgerPanel({ rows }: { rows: DocumentLedgerRow[] }) {
           {rows.map((r) => (
             <li key={r.id} className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[13.5px] font-semibold">{ROW_LABEL[r.type] ?? r.type}</div>
+                <div className="text-[13.5px] font-semibold">
+                  {ROW_LABEL[r.type] ?? r.type}
+                  {r.totalSteps && r.totalSteps > 1 && r.stepOrder ? <span className="mono ml-1.5 text-[11px] font-normal text-muted">step {r.stepOrder}/{r.totalSteps}</span> : null}
+                </div>
                 <div className="mono truncate text-[11px] text-muted">
                   {r.status === "CONFIRMED"
                     ? `${r.blockNumber ? `block ${r.blockNumber} · ` : ""}tx ${short(r.txId)}`

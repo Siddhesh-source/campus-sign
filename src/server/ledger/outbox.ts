@@ -11,6 +11,8 @@ export type LedgerEventDraft = {
   sha256?: string;
   signedSha256?: string;
   signerKeyId?: string;
+  stepOrder?: number;
+  totalSteps?: number;
   occurredAt?: Date;
   /** Local bookkeeping only (never sent on-chain). */
   signatureId?: string;
@@ -33,6 +35,8 @@ export function toLedgerPayload(eventId: string, d: LedgerEventDraft): LedgerEve
         sha256: d.sha256,
         signedSha256: d.signedSha256,
         signerKeyId: d.signerKeyId,
+        stepOrder: d.stepOrder,
+        totalSteps: d.totalSteps,
         occurredAt: (d.occurredAt ?? new Date()).toISOString(),
       }),
     ),

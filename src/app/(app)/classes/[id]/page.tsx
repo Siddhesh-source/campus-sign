@@ -70,7 +70,7 @@ export default async function ClassPage({
               Nobody has joined yet. Students appear here the moment they enter the code.
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
               <table className="ledger">
                 <thead>
                   <tr>
@@ -110,7 +110,7 @@ export default async function ClassPage({
             </div>
             {code ? (
               <div
-                className={`mono mt-3 flex flex-wrap gap-x-[0.15em] text-[26px] leading-none font-semibold tracking-[0.04em] ${live ? "" : "text-faint line-through"}`}
+                className={`mono mt-3 flex flex-wrap gap-x-[0.15em] text-[26px] leading-none font-semibold tracking-[0.04em] ${live ? "" : "text-muted line-through"}`}
                 aria-label={`Class code ${code.code}`}
               >
                 <span>{pre}</span>–<span>{mid}</span>–

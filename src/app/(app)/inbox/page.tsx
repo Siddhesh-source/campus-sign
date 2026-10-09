@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePageUser } from "@/server/auth";
 import { getFacultyClasses } from "@/server/classes";
 import { listDocumentTypes, listInbox } from "@/server/documents";
+import { currentStepOf, isCurrentApprover, routeOf } from "@/server/routes";
 import { DocStatus } from "@/components/doc-ui";
 import { fmtDateTime } from "@/lib/format";
 
@@ -23,8 +24,9 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const f = await searchParams;
   const status = f.status ?? "";
   const [classes, types] = await Promise.all([getFacultyClasses(user.id), listDocumentTypes()]);
-  let docs = await listInbox(user.id, { ...f, status: status === "ALL" || status === "" ? undefined : status });
-  if (status === "") docs = docs.filter((d) => d.status === "SUBMITTED" || d.status === "PENDING_REVIEW");
+  let docs = await listInbox(user, { ...f, status: status === "ALL" || status === "" ? undefined : status });
+  // "Needs review" = documents waiting at a step where I am the approver.
+  if (status === "") docs = docs.filter((d) => (d.status === "SUBMITTED" || d.status === "PENDING_REVIEW") && isCurrentApprover(user, d));
 
   return (
     <div className="px-4 py-8 sm:px-8 sm:py-10">
@@ -89,7 +91,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           {status === "" ? "Nothing waiting. Submissions from your classes land here the moment a student submits." : "No documents match these filters."}
         </p>
       ) : (
-        <div className="mt-6 overflow-x-auto">
+        <div className="mt-6 overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
           <table className="ledger min-w-[760px]">
             <thead>
               <tr>
@@ -109,6 +111,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                     </Link>
                     <span className="mono block text-[12px] text-muted">
                       {d.type.name} · v{d.current?.number}
+                      {routeOf(d).length > 1 && ` · step ${Math.min(d.currentStep, routeOf(d).length)}/${routeOf(d).length} ${currentStepOf(d).label}`}
                     </span>
                   </td>
                   <td>

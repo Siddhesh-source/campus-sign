@@ -28,7 +28,14 @@ export type AuditAction =
   | "document.approve_sign"
   | "credential.create"
   | "credential.rotate"
-  | "credential.revoke";
+  | "credential.revoke"
+  | "route.update"
+  | "document_type.create"
+  | "document_type.update"
+  | "signed_pdf.download"
+  | "ops.kek_rotate"
+  | "audit.export"
+  | "ops.seed";
 
 export type RequestMeta = { ip?: string | null; userAgent?: string | null };
 
