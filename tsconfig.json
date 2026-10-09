@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -19,7 +23,12 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@ledger-core": [
+        "./chaincode/campussign/src/core.ts"
+      ]
     }
   },
   "include": [
@@ -30,5 +39,12 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "chaincode/**/contract.ts",
+    "chaincode/**/index.ts",
+    "chaincode/**/node_modules",
+    "chaincode/**/dist",
+    ".fabric"
+  ]
 }

@@ -13,9 +13,16 @@
     "db:up": "docker compose up -d",
     "db:migrate": "prisma migrate dev",
     "typecheck": "tsc --noEmit",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "ledger:up": "bash infra/fabric/network.sh up",
+    "ledger:down": "bash infra/fabric/network.sh down",
+    "ledger:relay": "tsx --conditions=react-server scripts/ledger.ts relay",
+    "ledger:reconcile": "tsx --conditions=react-server scripts/ledger.ts reconcile",
+    "ledger:smoke": "tsx --conditions=react-server scripts/ledger.ts smoke"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.6",
+    "@hyperledger/fabric-gateway": "^1.12.1",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "better-auth": "^1.7.7",

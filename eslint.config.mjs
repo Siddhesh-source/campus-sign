@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Downloaded Fabric tooling, generated client and chaincode build output.
+    ".fabric/**",
+    "src/generated/**",
+    "chaincode/**/dist/**",
+    "chaincode/**/node_modules/**",
+    "test-results/**",
   ]),
 ]);
 

@@ -50,3 +50,6 @@ next-env.d.ts
 # private document storage
 /storage/
 /.test-storage/
+
+# local Hyperledger Fabric test network (downloaded)
+/.fabric/
