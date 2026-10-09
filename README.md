@@ -6,10 +6,13 @@ Academic document signing for VIT Pune.
 - **Phase 2:** versioned PDF submission and faculty review
 - **Phase 3:** Ed25519 signing and public verification
 - **Phase 4:** Hyperledger Fabric trust layer
+- **Phase 5:** pilot readiness. Configurable approval routes, admin tools (faculty access, document types, signing keys, audit search and export, blockchain health), personal activity trail, backup and restore, KEK rotation, accessibility, and a full-journey E2E test.
+
+**Setting up from scratch:** see [docs/SETUP.md](docs/SETUP.md). Operations (backup, restore, key rotation, compromise response) are in [docs/operations/runbook.md](docs/operations/runbook.md). Open legal questions for the pilot are in [docs/legal/open-questions.md](docs/legal/open-questions.md).
 
 - **Students** sign in with any Google-verified `@vit.edu` account. They join classes with a code and are added instantly.
 - **Faculty** are verified by an administrator, either added directly or approved from a request. Faculty create classes and manage their join codes.
-- **Admins** (from `ADMIN_EMAILS`) approve faculty and read the append-only audit log.
+- **Admins** (from `ADMIN_EMAILS`) verify and revoke faculty, configure document types and their approval routes (class faculty, then optional designated approvers such as a HoD), revoke signing keys, and search or export the append-only audit log.
 - **Students** submit PDFs to a class. Each submission is a locked, SHA-256-hashed version. **Faculty** review that exact version, then approve & sign, request corrections, or reject.
 - **Anyone** can verify a signed PDF at `/verify` without logging in. The browser hashes the file locally, and only the hash is sent.
 
@@ -39,14 +42,15 @@ pnpm ledger:down
 
 - **What goes on-chain:** event id, type (submitted, approved, rejected, corrections requested, key revoked), opaque document and version ids, SHA-256 hashes, the signing key id, and timestamps.
 - **What never goes on-chain:** names, PRNs, emails, titles, rejection comments, PDFs, or keys. An allow-list is enforced in both the app and the chaincode.
-- **Delivery:** events are written to a transactional outbox together with each decision. The relay delivers them idempotently, using the event id as the key, so crashes and retries can never create duplicate events.
-- **What "Fully verified" means:** a valid Ed25519 signature plus a confirmed, matching on-chain record. A decision waiting on the chain is shown as exactly that.
+- **Delivery:** events are written to a transactional outbox together with each decision. The relay claims a row with a short lease, calls Fabric with no database transaction open, then settles the row fenced on that lease. Delivery is idempotent on the event id, so crashes and retries can never create duplicate events; a crashed claim is replayed once its lease expires.
+- **What "Fully verified" means:** every signature in the approval chain is valid, every step's on-chain record is confirmed and matches, and the route's final step has signed. A decision waiting on the chain is shown as exactly that.
 
 ## Tests
 
 ```bash
 pnpm test                     # Vitest integration suite (uses campusign_test DB)
-PW_CHANNEL=chrome pnpm e2e    # Playwright: done-criteria on desktop + phone
+PW_CHANNEL=chrome pnpm e2e    # Playwright on desktop + phone: full pilot journey with axe (WCAG 2.1 AA) + overflow checks per screen
+SHOTS=1 PW_CHANNEL=chrome pnpm e2e   # also screenshot every checked screen into test-results/shots/
 LEDGER_IT=1 pnpm test tests/fabric.it.test.ts   # against the real Fabric network
 pnpm typecheck && pnpm lint
 ```
@@ -60,7 +64,9 @@ pnpm typecheck && pnpm lint
 | `src/lib/` | Pure helpers shared by server and client (codes, identity, formatting) |
 | `prisma/` | Schema and migrations; the init migration adds the one-active-code index and the audit trigger |
 | `DESIGN.md` | Design system (read before UI work) |
-| `docs/plans/phase-1-plan.md`, `phase-2-3-plan.md` | Reviewed phase plans |
+| `docs/plans/` | Reviewed phase plans (1, 2-3, 4, 5) |
+| `docs/SETUP.md`, `docs/operations/runbook.md`, `docs/legal/open-questions.md` | Setup, operations, legal |
+| `scripts/ops/` | Backup, restore, KEK rotation, affected-documents lookup |
 
 ## Security notes
 

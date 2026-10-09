@@ -12,14 +12,24 @@
 - **Why:** Local disk is fine for one server, but not for multi-instance deploys. Uploads are capped at 10 MB but not rate-limited.
 - **Effort:** human M / CC S. **Depends on:** deploy target.
 
-## P2 — Admin view of signing credentials
-- **What:** An admin page that lists every faculty signing key, with a revoke button. The service already supports admin revocation via `revokeCredential`, and revoking faculty access already revokes their keys.
-- **Effort:** human S / CC S.
-
 ## P1 — Production Fabric network
 - **What:** Replace cryptogen with Fabric CA-issued identities. Run 3+ Raft orderers. Add an auditor org with read-only access (the chaincode already restricts writes to `WRITER_MSPS`). Run the relay as its own deployment with alerts on pending age and on mismatches.
 - **Why:** The local test network is single-host and uses generated crypto.
 - **Effort:** human L / CC M. **Depends on:** deploy target.
+
+## P1 — Strict CSP with nonces
+- **What:** Replace `'unsafe-inline'` in `script-src` with per-request nonces via middleware.
+- **Why:** The current CSP blocks framing, plugins and foreign origins, but still allows inline scripts.
+- **Effort:** human S / CC S.
+
+## P1 — Shared rate-limit store for public verify
+- **What:** Move the `/verify` per-IP limiter (`src/server/public-limit.ts`, in memory) to Postgres or Redis.
+- **Why:** An in-memory limit resets on restart and is per instance.
+- **Effort:** human S / CC S. **Depends on:** deploy target.
+
+## P2 — Class reassignment when faculty leave
+- **What:** Let an admin move a revoked faculty member's classes and pending documents to another faculty member. Today, revoking access stops their reviews and keys, and pending documents wait.
+- **Effort:** human M / CC S.
 
 ## P2 — Mismatch resolution workflow
 - **What:** Let admins investigate, annotate and resolve `ledger_mismatch` rows, which today are only listed. Add a scheduled reconciliation job.
