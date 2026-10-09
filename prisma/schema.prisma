@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Better Auth core models ────────────────────────────────────────────────
+
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  suspendedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions    Session[]
+  accounts    Account[]
+  classes     Class[]      @relation("ClassFaculty")
+  enrollments Enrollment[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ── CampusSign ────────────────────────────────────────────────────────────
+
+enum FacultyAccessStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVOKED
+}
+
+/// Faculty role grant, keyed by institutional email so an admin can approve
+/// someone before their first sign-in. Only admins move it to APPROVED.
+model FacultyAccess {
+  id          String              @id @default(cuid())
+  email       String              @unique
+  department  String?
+  status      FacultyAccessStatus @default(PENDING)
+  requestedAt DateTime?
+  decidedAt   DateTime?
+  decidedById String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([status])
+  @@map("faculty_access")
+}
+
+model Class {
+  id           String    @id @default(cuid())
+  facultyId    String
+  faculty      User      @relation("ClassFaculty", fields: [facultyId], references: [id])
+  name         String
+  subjectCode  String
+  academicYear String
+  yearOfStudy  String
+  division     String
+  description  String?
+  studentLimit Int
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  archivedAt   DateTime?
+
+  codes       ClassCode[]
+  enrollments Enrollment[]
+
+  @@index([facultyId])
+  @@map("class")
+}
+
+enum ClassCodeStatus {
+  ACTIVE
+  REVOKED
+  SUPERSEDED
+}
+
+/// Join codes are never reused. At most one ACTIVE code per class
+/// (partial unique index in the init migration). Expiry is computed from expiresAt.
+///
+///   ACTIVE ──rotate──► SUPERSEDED
+///   ACTIVE ──revoke──► REVOKED
+///   ACTIVE ──expiresAt passes──► (still ACTIVE in DB, treated as expired)
+model ClassCode {
+  id          String          @id @default(cuid())
+  classId     String
+  class       Class           @relation(fields: [classId], references: [id], onDelete: Cascade)
+  code        String          @unique
+  lookupKey   String          @unique
+  status      ClassCodeStatus @default(ACTIVE)
+  expiresAt   DateTime?
+  createdById String
+  createdAt   DateTime        @default(now())
+  endedAt     DateTime?
+
+  enrollments Enrollment[]
+
+  @@index([classId, status])
+  @@map("class_code")
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  REMOVED
+  LEFT
+}
+
+/// Students are approved automatically on join.
+///   (none) ──join──► ACTIVE ──faculty remove──► REMOVED
+///                    ACTIVE ──student leave───► LEFT
+///   REMOVED/LEFT ──join with a valid code──► ACTIVE (same row)
+model Enrollment {
+  id        String           @id @default(cuid())
+  classId   String
+  class     Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User             @relation(fields: [studentId], references: [id])
+  status    EnrollmentStatus @default(ACTIVE)
+  viaCodeId String?
+  viaCode   ClassCode?       @relation(fields: [viaCodeId], references: [id])
+  joinedAt  DateTime         @default(now())
+  endedAt   DateTime?
+
+  @@unique([classId, studentId])
+  @@index([studentId, status])
+  @@index([classId, status])
+  @@map("enrollment")
+}
+
+/// Append-only. UPDATE/DELETE are rejected by a trigger (init migration).
+model AuditEvent {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([actorId])
+  @@index([action])
+  @@map("audit_event")
+}
+
+/// Failed class-code lookups per key (user:<id> or ip:<addr>).
+model CodeLookupLimit {
+  key         String    @id
+  failures    Int       @default(0)
+  windowStart DateTime  @default(now())
+  lockedUntil DateTime?
+  lockCount   Int       @default(0)
+  updatedAt   DateTime  @updatedAt
+
+  @@map("code_lookup_limit")
+}
